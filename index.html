@@ -124,7 +124,7 @@ function bars(p){
 // ---------- Baholat ----------
 let form = {};
 function viewAdd(){
-  form = { store:null, cat:null, file:null };
+  form = { store:null, cat:null, file:null, blob:null };
   $("#app").innerHTML = `
   ${!IS_TG ? `<div class="card meta" style="padding:10px 14px">Mehmon sifatida yozyapsiz. <a href="#" id="goLogin">Telegram orqali kiring</a> — xaridlaringiz hamma qurilmada saqlanadi.</div>` : ""}
   <div class="card">
@@ -144,7 +144,9 @@ function viewAdd(){
   </div>`;
   const gl = $("#goLogin"); if (gl) gl.onclick = e => { e.preventDefault(); go("me"); };
   $("#ph").onclick = () => $("#file").click();
-  $("#file").onchange = e => { const f=e.target.files[0]; if(!f)return; form.file=f; $("#ph").innerHTML=`<img src="${URL.createObjectURL(f)}" onerror="this.replaceWith('✅ Rasm tanlandi')">`; };
+  $("#file").onchange = e => { const f=e.target.files[0]; if(!f)return; form.file=f;
+    // Android WebView ruxsatni tez yo'qotadi: darhol o'qib, siqib qo'yamiz
+    form.blob = shrink(f); form.blob.catch(err => toast(err.message)); $("#ph").innerHTML=`<img src="${URL.createObjectURL(f)}" onerror="this.replaceWith('✅ Rasm tanlandi')">`; };
   $("#price").oninput = e => { const d=e.target.value.replace(/\D/g,"").slice(0,12); e.target.value = d ? Number(d).toLocaleString("ru-RU").replace(/,/g," ") : ""; };
   pick("#stores", v => form.store=v); pick("#cats", v => form.cat=v);
   $("#send").onclick = submit;
@@ -193,7 +195,7 @@ async function submit(){
   try {
     let photo_url = null;
     if (form.file) {
-      const blob = await shrink(form.file);
+      const blob = await (form.blob || shrink(form.file));
       const ct = blob.type || "image/jpeg", ext = ct.split("/")[1].replace("jpeg","jpg");
       const path = `${ME.id}/${Date.now()}.${ext}`;
       const up = await sb.storage.from("xb-photos").upload(path, blob, { contentType: ct });
