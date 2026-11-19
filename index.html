@@ -83,19 +83,21 @@ const STORES = ["Uzum","OLX","Korzinka","Makro","Texnomart","Mediapark","Wildber
 const CATS = ["Texnika","Kiyim","Oziq-ovqat","Avto","Uy-ro'zg'or","Go'zallik","Boshqa"];
 
 // Foydalanuvchi
+function siteLogin(){ try { return JSON.parse(localStorage.getItem("xb_tg_login") || "null"); } catch(e) { return null; } }
 function me(){
-  const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  const u = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || siteLogin();
   if (u) return { id: "tg_" + u.id, name: [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || "Telegram" };
   let id = localStorage.getItem("xb_id");
   if (!id) { id = "web_" + crypto.randomUUID().replace(/-/g,""); localStorage.setItem("xb_id", id); }
   return { id, name: localStorage.getItem("xb_name") || "Mehmon" };
 }
 let ME = me();
-const IS_TG = !!(tg && tg.initData && ME.id.startsWith("tg_"));
+const IN_TG = !!(tg && tg.initData);
+let IS_TG = ME.id.startsWith("tg_");
 const BOT = "Bahobor_bot", SITE = "https://xarid-baho.vercel.app";
 async function tgWrite(action, payload){
-  const { data, error } = await sb.functions.invoke("tg-write", { body: { initData: tg.initData, action, ...payload } });
-  if (error) { let m = error.message; try { m = (await error.context.json()).error || m; } catch(e){} throw new Error(m); }
+  const { data, error } = await sb.functions.invoke("tg-write", { body: { ...(IN_TG ? { initData: tg.initData } : { login: siteLogin() }), action, ...payload } });
+  if (error) { let m = error.message, st = 0; try { st = error.context.status; m = (await error.context.json()).error || m; } catch(e){} if (st === 401 && !IN_TG) logout(); throw new Error(m); }
   return data;
 }
 document.getElementById("hello").textContent = ME.name;
@@ -124,6 +126,7 @@ let form = {};
 function viewAdd(){
   form = { store:null, cat:null, file:null };
   $("#app").innerHTML = `
+  ${!IS_TG ? `<div class="card meta" style="padding:10px 14px">Mehmon sifatida yozyapsiz. <a href="#" id="goLogin">Telegram orqali kiring</a> — xaridlaringiz hamma qurilmada saqlanadi.</div>` : ""}
   <div class="card">
     <div class="photo" id="ph">📷 Rasm qo'shish</div>
     <input type="file" id="file" accept="image/*" class="hidden">
@@ -139,6 +142,7 @@ function viewAdd(){
     <textarea id="note" maxlength="300" placeholder="Holati, rangi, chegirma..."></textarea>
     <button class="btn" id="send">Baholashga yuborish</button>
   </div>`;
+  const gl = $("#goLogin"); if (gl) gl.onclick = e => { e.preventDefault(); go("me"); };
   $("#ph").onclick = () => $("#file").click();
   $("#file").onchange = e => { const f=e.target.files[0]; if(!f)return; form.file=f; $("#ph").innerHTML=`<img src="${URL.createObjectURL(f)}" onerror="this.replaceWith('✅ Rasm tanlandi')">`; };
   $("#price").oninput = e => { const d=e.target.value.replace(/\D/g,"").slice(0,12); e.target.value = d ? Number(d).toLocaleString("ru-RU").replace(/,/g," ") : ""; };
@@ -234,7 +238,7 @@ function card(p, done){
 }
 function share(id, title, price){
   const text = `${title} — ${som(price)}. Arzonmi yoki qimmatmi? Baho bering 👇`;
-  if (IS_TG) { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT}?startapp=p_${id}`)}&text=${encodeURIComponent(text)}`); return; }
+  if (IN_TG) { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT}?startapp=p_${id}`)}&text=${encodeURIComponent(text)}`); return; }
   const url = `${SITE}/?p=${id}`;
   if (navigator.share) navigator.share({ title:"Xarid Baho", text, url }).catch(()=>{});
   else navigator.clipboard.writeText(text+" "+url).then(()=>toast("Havola nusxalandi"));
@@ -279,11 +283,29 @@ async function search(q){
     </table>${q?"":`<div class="meta" style="margin-top:8px">Aniq natija uchun mahsulot nomini yozing.</div>`}</div>`;
 }
 
+// ---------- Sayt: Telegram orqali kirish ----------
+window.onTgAuth = async (user) => {
+  localStorage.setItem("xb_tg_login", JSON.stringify(user));
+  try { await tgWrite("whoami", {}); } catch(e) { return toast("Kirish xatosi: " + e.message); }
+  ME = me(); IS_TG = true; $("#hello").textContent = ME.name; toast("Xush kelibsiz, " + ME.name + "!"); go("me");
+};
+function logout(){ localStorage.removeItem("xb_tg_login"); ME = me(); IS_TG = ME.id.startsWith("tg_"); $("#hello").textContent = ME.name; }
+function loginWidget(el){
+  const sc = document.createElement("script");
+  sc.async = true; sc.src = "https://telegram.org/js/telegram-widget.js?22";
+  sc.setAttribute("data-telegram-login", BOT); sc.setAttribute("data-size", "large");
+  sc.setAttribute("data-radius", "12"); sc.setAttribute("data-onauth", "onTgAuth(user)"); sc.setAttribute("data-request-access", "write");
+  el.appendChild(sc);
+}
+
 // ---------- Profil ----------
 async function viewMe(){
-  $("#app").innerHTML = `<div class="card"><div class="row"><div><b style="font-size:18px">${esc(ME.name)}</b><div class="meta">${tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? "Telegram orqali kirgan" : "Brauzer orqali"}</div></div>${ME.id.startsWith("web_")?`<button class="chip" id="rn">✏️ Ism</button>`:""}</div>
+  $("#app").innerHTML = `<div class="card"><div class="row"><div><b style="font-size:18px">${esc(ME.name)}</b><div class="meta">${IS_TG ? "✅ Telegram orqali kirgan" : "Mehmon (faqat shu qurilmada)"}</div></div>${ME.id.startsWith("web_")?`<button class="chip" id="rn">✏️ Ism</button>`:(!IN_TG?`<button class="chip" id="lo">Chiqish</button>`:"")}</div>
+    ${!IS_TG ? `<div style="margin-top:12px"><div class="meta" style="margin-bottom:8px">Barcha qurilmalarda bitta akkaunt uchun kiring:</div><div id="tgw"></div></div>` : ""}
     <div class="stats" style="margin-top:12px" id="st"><div><b>…</b>Xaridlar</div><div><b>…</b>Baholar</div><div><b>…</b>Aniqlik</div></div></div>
     <h3 style="margin:16px 4px 8px">Mening xaridlarim</h3><div id="mine"><div class="empty">Yuklanmoqda...</div></div>`;
+  if ($("#tgw")) loginWidget($("#tgw"));
+  const lo = $("#lo"); if (lo) lo.onclick = () => { logout(); viewMe(); };
   const rn = $("#rn"); if (rn) rn.onclick = () => { const n = prompt("Ismingiz:", ME.name); if (n && n.trim()) { localStorage.setItem("xb_name", n.trim().slice(0,60)); ME = me(); $("#hello").textContent = ME.name; viewMe(); } };
   const [mine, votes] = await Promise.all([
     sb.from("xb_feed").select("*").eq("user_id", ME.id).order("created_at",{ascending:false}),
