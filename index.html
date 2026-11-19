@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Xarid Baho</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:var(--tg-theme-bg-color,#f4f5f7);--card:var(--tg-theme-secondary-bg-color,#fff);
+  --tx:var(--tg-theme-text-color,#14161a);--mut:var(--tg-theme-hint-color,#80868f);
+  --acc:var(--tg-theme-button-color,#1f8cf0);--acctx:var(--tg-theme-button-text-color,#fff);
+  --g:#1fa463;--y:#e0a100;--r:#e2483d;--line:rgba(127,127,127,.18)
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font:15px/1.4 -apple-system,system-ui,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--tx);padding-bottom:84px}
+header{padding:14px 16px 6px;display:flex;align-items:center;justify-content:space-between}
+header h1{font-size:20px;margin:0}
+header small{color:var(--mut)}
+main{padding:8px 12px}
+.card{background:var(--card);border-radius:16px;padding:14px;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+label{display:block;font-weight:600;margin:12px 0 6px}
+input,textarea{width:100%;padding:12px;border:1px solid var(--line);border-radius:12px;font:inherit;background:var(--bg);color:var(--tx)}
+textarea{min-height:60px;resize:vertical}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:8px 12px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--tx);font:inherit;cursor:pointer}
+.chip.on{background:var(--acc);color:var(--acctx);border-color:var(--acc)}
+.scroll{overflow-x:auto;flex-wrap:nowrap;padding-bottom:4px}
+.scroll .chip{white-space:nowrap}
+.btn{width:100%;padding:14px;border:0;border-radius:12px;background:var(--acc);color:var(--acctx);font-weight:600;font-size:16px;font-family:inherit;cursor:pointer;margin-top:14px}
+.btn:disabled{opacity:.5}
+.photo{display:flex;align-items:center;justify-content:center;height:180px;border:2px dashed var(--line);border-radius:14px;color:var(--mut);cursor:pointer;overflow:hidden;background:var(--bg)}
+.photo img{width:100%;height:100%;object-fit:cover}
+nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+nav button{flex:1;border:0;background:none;color:var(--mut);font-size:12px;font-family:inherit;padding:6px 0;cursor:pointer}
+nav button b{display:block;font-size:22px;line-height:1.2}
+nav button.on{color:var(--acc)}
+.item img.pic{width:100%;max-height:300px;object-fit:cover;border-radius:12px;margin-bottom:10px;background:var(--bg)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.price{font-size:20px;font-weight:700}
+.meta{color:var(--mut);font-size:13px}
+.tag{display:inline-block;padding:3px 8px;border-radius:8px;background:var(--bg);font-size:12px;margin-right:4px}
+.vote{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+.vote2{grid-template-columns:repeat(2,1fr)}
+.vote button{padding:10px 4px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--tx);font-weight:600;font-size:14px;font-family:inherit;cursor:pointer}
+.vote button.on.a{background:var(--g);color:#fff;border-color:var(--g)}
+.vote button.on.n{background:var(--y);color:#fff;border-color:var(--y)}
+.vote button.on.q{background:var(--r);color:#fff;border-color:var(--r)}
+.vote button.on.o{background:var(--acc);color:var(--acctx);border-color:var(--acc)}
+.bar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:var(--bg);margin:8px 0 4px}
+.bar i{display:block}
+.verdict{font-weight:700;margin-top:6px}
+.empty{text-align:center;color:var(--mut);padding:40px 10px}
+table{width:100%;border-collapse:collapse}
+td,th{padding:8px 4px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+th{color:var(--mut);font-weight:500}
+.best{color:var(--g);font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stats div{background:var(--bg);border-radius:12px;padding:10px 4px}
+.stats b{display:block;font-size:20px}
+.toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;z-index:9;display:none}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<header><div><h1>🛒 Xarid Baho</h1><small>Narx to'g'rimi? Xalq aytadi.</small></div><small id="hello"></small></header>
+<main id="app"></main>
+<nav id="nav">
+  <button data-t="add"><b>➕</b>Baholat</button>
+  <button data-t="feed"><b>🔥</b>Lenta</button>
+  <button data-t="prices"><b>📊</b>Narxlar</button>
+  <button data-t="me"><b>👤</b>Profil</button>
+</nav>
+<div class="toast" id="toast"></div>
+<script>
+const CFG = { url: "__SUPABASE_URL__", key: "__SUPABASE_KEY__" };
+const sb = supabase.createClient(CFG.url, CFG.key);
+const tg = window.Telegram && Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+const STORES = ["Uzum","OLX","Korzinka","Makro","Texnomart","Mediapark","Wildberries","Bozor","Boshqa"];
+const CATS = ["Texnika","Kiyim","Oziq-ovqat","Avto","Uy-ro'zg'or","Go'zallik","Boshqa"];
+
+// Foydalanuvchi
+function me(){
+  const u = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+  if (u) return { id: "tg_" + u.id, name: [u.first_name, u.last_name].filter(Boolean).join(" ") || u.username || "Telegram" };
+  let id = localStorage.getItem("xb_id");
+  if (!id) { id = "web_" + crypto.randomUUID().replace(/-/g,""); localStorage.setItem("xb_id", id); }
+  return { id, name: localStorage.getItem("xb_name") || "Mehmon" };
+}
+let ME = me();
+document.getElementById("hello").textContent = ME.name;
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const som = n => Number(n).toLocaleString("ru-RU").replace(/,/g," ") + " so'm";
+function toast(t){ const e=$("#toast"); e.textContent=t; e.style.display="block"; clearTimeout(e._t); e._t=setTimeout(()=>e.style.display="none",2200); }
+function haptic(){ try{ tg && tg.HapticFeedback.impactOccurred("light"); }catch(e){} }
+function ago(d){ const s=(Date.now()-new Date(d))/1000; if(s<60)return "hozir"; if(s<3600)return Math.floor(s/60)+" daq oldin"; if(s<86400)return Math.floor(s/3600)+" soat oldin"; return Math.floor(s/86400)+" kun oldin"; }
+
+function verdict(p){
+  if (!p.votes) return { t:"Hali baho yo'q", c:"var(--mut)" };
+  const m = Math.max(p.arzon,p.normal,p.qimmat);
+  const v = p.arzon===m ? ["✅ Arzon olingan","var(--g)"] : p.normal===m ? ["👌 Normal narx","var(--y)"] : ["❌ Qimmat olingan","var(--r)"];
+  return { t: v[0], c: v[1] };
+}
+function bars(p){
+  const t = p.votes || 1;
+  return `<div class="bar"><i style="width:${p.arzon/t*100}%;background:var(--g)"></i><i style="width:${p.normal/t*100}%;background:var(--y)"></i><i style="width:${p.qimmat/t*100}%;background:var(--r)"></i></div>
+  <div class="meta">Arzon ${p.arzon} · Normal ${p.normal} · Qimmat ${p.qimmat} · Ol ${p.ol} / Olma ${p.olma}</div>`;
+}
+
+// ---------- Baholat ----------
+let form = {};
+function viewAdd(){
+  form = { store:null, cat:null, file:null };
+  $("#app").innerHTML = `
+  <div class="card">
+    <div class="photo" id="ph">📷 Rasm qo'shish</div>
+    <input type="file" id="file" accept="image/*" class="hidden">
+    <label>Nima oldingiz?</label>
+    <input id="title" maxlength="120" placeholder="Masalan: iPhone 15 128GB">
+    <label>Narxi (so'm)</label>
+    <input id="price" inputmode="numeric" placeholder="Masalan: 9 500 000">
+    <label>Qayerdan?</label>
+    <div class="chips" id="stores">${STORES.map(s=>`<button class="chip" data-v="${s}">${s}</button>`).join("")}</div>
+    <label>Bo'lim</label>
+    <div class="chips" id="cats">${CATS.map(s=>`<button class="chip" data-v="${s}">${s}</button>`).join("")}</div>
+    <label>Izoh (ixtiyoriy)</label>
+    <textarea id="note" maxlength="300" placeholder="Holati, rangi, chegirma..."></textarea>
+    <button class="btn" id="send">Baholashga yuborish</button>
+  </div>`;
+  $("#ph").onclick = () => $("#file").click();
+  $("#file").onchange = e => { const f=e.target.files[0]; if(!f)return; form.file=f; $("#ph").innerHTML=`<img src="${URL.createObjectURL(f)}">`; };
+  $("#price").oninput = e => { const d=e.target.value.replace(/\D/g,"").slice(0,12); e.target.value = d ? Number(d).toLocaleString("ru-RU").replace(/,/g," ") : ""; };
+  pick("#stores", v => form.store=v); pick("#cats", v => form.cat=v);
+  $("#send").onclick = submit;
+}
+function pick(sel, cb){
+  document.querySelectorAll(sel+" .chip").forEach(b => b.onclick = () => {
+    document.querySelectorAll(sel+" .chip").forEach(x=>x.classList.remove("on")); b.classList.add("on"); cb(b.dataset.v); haptic();
+  });
+}
+async function shrink(file){
+  const img = await createImageBitmap(file);
+  const k = Math.min(1, 1080 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width*k); c.height = Math.round(img.height*k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return new Promise(r => c.toBlob(r, "image/jpeg", 0.8));
+}
+async function submit(){
+  const title = $("#title").value.trim(), price = Number($("#price").value.replace(/\D/g,""));
+  if (title.length < 2) return toast("Mahsulot nomini yozing");
+  if (!price) return toast("Narxini yozing");
+  if (!form.store) return toast("Do'konni tanlang");
+  if (!form.cat) return toast("Bo'limni tanlang");
+  const b = $("#send"); b.disabled = true; b.textContent = "Yuborilmoqda...";
+  try {
+    let photo_url = null;
+    if (form.file) {
+      const blob = await shrink(form.file);
+      const path = `${ME.id}/${Date.now()}.jpg`;
+      const up = await sb.storage.from("xb-photos").upload(path, blob, { contentType:"image/jpeg" });
+      if (up.error) throw up.error;
+      photo_url = sb.storage.from("xb-photos").getPublicUrl(path).data.publicUrl;
+    }
+    const { error } = await sb.from("xb_purchases").insert({ user_id:ME.id, user_name:ME.name, title, price, store:form.store, category:form.cat, photo_url, note:$("#note").value.trim()||null });
+    if (error) throw error;
+    toast("Yuborildi! Endi xalq baholaydi"); go("me");
+  } catch(e) { console.error(e); toast("Xatolik: " + (e.message||e)); b.disabled=false; b.textContent="Baholashga yuborish"; }
+}
+
+// ---------- Lenta ----------
+let feedCat = "Hammasi";
+async function viewFeed(){
+  $("#app").innerHTML = `<div class="chips scroll" id="fc">${["Hammasi",...CATS].map(c=>`<button class="chip ${c===feedCat?"on":""}" data-v="${c}">${c}</button>`).join("")}</div><div id="list" style="margin-top:10px"><div class="empty">Yuklanmoqda...</div></div>`;
+  document.querySelectorAll("#fc .chip").forEach(b => b.onclick = () => { feedCat=b.dataset.v; viewFeed(); });
+  let q = sb.from("xb_feed").select("*").order("created_at",{ascending:false}).limit(50);
+  if (feedCat !== "Hammasi") q = q.eq("category", feedCat);
+  const [{ data, error }, mv] = await Promise.all([q, sb.from("xb_votes").select("purchase_id").eq("user_id", ME.id)]);
+  if (error) return $("#list").innerHTML = `<div class="empty">Xatolik: ${esc(error.message)}</div>`;
+  const voted = new Set((mv.data||[]).map(v=>v.purchase_id));
+  if (!data.length) return $("#list").innerHTML = `<div class="empty">Hali xarid yo'q. Birinchi bo'ling! ➕</div>`;
+  $("#list").innerHTML = data.map(p => card(p, voted.has(p.id) || p.user_id===ME.id)).join("");
+  bindVotes();
+}
+function card(p, done){
+  const v = verdict(p);
+  return `<div class="card item" data-id="${p.id}">
+    ${p.photo_url ? `<img class="pic" loading="lazy" src="${esc(p.photo_url)}">` : ""}
+    <div class="row"><div><b>${esc(p.title)}</b><div class="meta">${esc(p.user_name)} · ${ago(p.created_at)}</div></div></div>
+    <div class="row" style="margin-top:6px"><span class="price">${som(p.price)}</span><span><span class="tag">${esc(p.store)}</span><span class="tag">${esc(p.category)}</span></span></div>
+    ${p.note ? `<div class="meta" style="margin-top:6px">${esc(p.note)}</div>` : ""}
+    ${done ? `${bars(p)}<div class="verdict" style="color:${v.c}">${v.t}</div>` : `
+      <div class="meta" style="margin-top:10px">Narxi qanday?</div>
+      <div class="vote" data-k="price"><button class="a" data-v="arzon">Arzon</button><button class="n" data-v="normal">Normal</button><button class="q" data-v="qimmat">Qimmat</button></div>
+      <div class="meta" style="margin-top:8px">Siz olarmidingiz?</div>
+      <div class="vote vote2" data-k="buy"><button class="o" data-v="1">👍 Ol</button><button class="o" data-v="0">👎 Olma</button></div>`}
+  </div>`;
+}
+function bindVotes(){
+  document.querySelectorAll(".item").forEach(el => {
+    const st = {};
+    el.querySelectorAll(".vote").forEach(g => g.querySelectorAll("button").forEach(b => b.onclick = async () => {
+      g.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); haptic();
+      st[g.dataset.k] = b.dataset.v;
+      if (st.price && st.buy) {
+        const { error } = await sb.from("xb_votes").insert({ purchase_id: el.dataset.id, user_id: ME.id, price_vote: st.price, buy_vote: st.buy==="1" });
+        if (error && error.code !== "23505") return toast("Xatolik: "+error.message);
+        const { data } = await sb.from("xb_feed").select("*").eq("id", el.dataset.id).single();
+        if (data) { el.outerHTML = card(data, true); }
+        toast("Rahmat! Bahoingiz qabul qilindi");
+      }
+    }));
+  });
+}
+
+// ---------- Narxlar ----------
+async function viewPrices(){
+  $("#app").innerHTML = `<div class="card"><label style="margin-top:0">Mahsulot qidirish</label><input id="q" placeholder="Masalan: iPhone 15, un 5kg, shina"><div class="meta" style="margin-top:6px">Foydalanuvchilar yozgan haqiqiy narxlar bo'yicha qaysi do'kon arzon.</div></div><div id="res"></div>`;
+  let t; $("#q").oninput = e => { clearTimeout(t); t = setTimeout(()=>search(e.target.value.trim()), 350); };
+  search("");
+}
+async function search(q){
+  let r = sb.from("xb_purchases").select("title,price,store,created_at").order("created_at",{ascending:false}).limit(500);
+  if (q) r = r.ilike("title", `%${q.replace(/[%_]/g,"")}%`);
+  const { data, error } = await r;
+  if (error) return $("#res").innerHTML = `<div class="empty">${esc(error.message)}</div>`;
+  if (!data.length) return $("#res").innerHTML = `<div class="empty">Ma'lumot topilmadi</div>`;
+  const g = {};
+  data.forEach(p => { (g[p.store] ||= []).push(Number(p.price)); });
+  const rows = Object.entries(g).map(([s,a]) => ({ s, n:a.length, min:Math.min(...a), avg:Math.round(a.reduce((x,y)=>x+y,0)/a.length) })).sort((a,b)=>a.avg-b.avg);
+  $("#res").innerHTML = `<div class="card"><b>${q ? "“"+esc(q)+"”" : "Barcha xaridlar"}</b> <span class="meta">· ${data.length} ta narx</span>
+    <table><tr><th>Do'kon</th><th>O'rtacha</th><th>Eng arzon</th><th>Soni</th></tr>
+    ${rows.map((r,i)=>`<tr><td class="${i===0&&rows.length>1?"best":""}">${i===0&&rows.length>1?"🏆 ":""}${esc(r.s)}</td><td>${som(r.avg)}</td><td>${som(r.min)}</td><td>${r.n}</td></tr>`).join("")}
+    </table>${q?"":`<div class="meta" style="margin-top:8px">Aniq natija uchun mahsulot nomini yozing.</div>`}</div>`;
+}
+
+// ---------- Profil ----------
+async function viewMe(){
+  $("#app").innerHTML = `<div class="card"><div class="row"><div><b style="font-size:18px">${esc(ME.name)}</b><div class="meta">${tg && tg.initDataUnsafe && tg.initDataUnsafe.user ? "Telegram orqali kirgan" : "Brauzer orqali"}</div></div>${ME.id.startsWith("web_")?`<button class="chip" id="rn">✏️ Ism</button>`:""}</div>
+    <div class="stats" style="margin-top:12px" id="st"><div><b>…</b>Xaridlar</div><div><b>…</b>Baholar</div><div><b>…</b>Aniqlik</div></div></div>
+    <h3 style="margin:16px 4px 8px">Mening xaridlarim</h3><div id="mine"><div class="empty">Yuklanmoqda...</div></div>`;
+  const rn = $("#rn"); if (rn) rn.onclick = () => { const n = prompt("Ismingiz:", ME.name); if (n && n.trim()) { localStorage.setItem("xb_name", n.trim().slice(0,60)); ME = me(); $("#hello").textContent = ME.name; viewMe(); } };
+  const [mine, votes] = await Promise.all([
+    sb.from("xb_feed").select("*").eq("user_id", ME.id).order("created_at",{ascending:false}),
+    sb.from("xb_votes").select("purchase_id,price_vote").eq("user_id", ME.id)
+  ]);
+  const my = mine.data || [], vs = votes.data || [];
+  // Aniqlik: mening bahom ko'pchilik fikriga mos kelgan foiz
+  let acc = "—";
+  if (vs.length) {
+    const { data: fs } = await sb.from("xb_feed").select("id,arzon,normal,qimmat").in("id", vs.map(v=>v.purchase_id));
+    const m = {}; (fs||[]).forEach(f => { const mx=Math.max(f.arzon,f.normal,f.qimmat); m[f.id] = f.arzon===mx?"arzon":f.normal===mx?"normal":"qimmat"; });
+    const hit = vs.filter(v => m[v.purchase_id]===v.price_vote).length;
+    acc = Math.round(hit/vs.length*100) + "%";
+  }
+  $("#st").innerHTML = `<div><b>${my.length}</b>Xaridlar</div><div><b>${vs.length}</b>Baholar</div><div><b>${acc}</b>Aniqlik</div>`;
+  $("#mine").innerHTML = my.length ? my.map(p => card(p, true)).join("") : `<div class="empty">Hali xarid qo'shmagansiz</div>`;
+}
+
+// ---------- Navigatsiya ----------
+const VIEWS = { add:viewAdd, feed:viewFeed, prices:viewPrices, me:viewMe };
+function go(t){ document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.t===t)); scrollTo(0,0); VIEWS[t](); }
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { haptic(); go(b.dataset.t); });
+go("feed");
+</script>
+</body>
+</html>
