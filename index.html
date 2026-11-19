@@ -140,7 +140,7 @@ function viewAdd(){
     <button class="btn" id="send">Baholashga yuborish</button>
   </div>`;
   $("#ph").onclick = () => $("#file").click();
-  $("#file").onchange = e => { const f=e.target.files[0]; if(!f)return; form.file=f; $("#ph").innerHTML=`<img src="${URL.createObjectURL(f)}">`; };
+  $("#file").onchange = e => { const f=e.target.files[0]; if(!f)return; form.file=f; $("#ph").innerHTML=`<img src="${URL.createObjectURL(f)}" onerror="this.replaceWith('✅ Rasm tanlandi')">`; };
   $("#price").oninput = e => { const d=e.target.value.replace(/\D/g,"").slice(0,12); e.target.value = d ? Number(d).toLocaleString("ru-RU").replace(/,/g," ") : ""; };
   pick("#stores", v => form.store=v); pick("#cats", v => form.cat=v);
   $("#send").onclick = submit;
@@ -150,23 +150,34 @@ function pick(sel, cb){
     document.querySelectorAll(sel+" .chip").forEach(x=>x.classList.remove("on")); b.classList.add("on"); cb(b.dataset.v); haptic();
   });
 }
-function loadImg(file){
-  return new Promise((res, rej) => { const u = URL.createObjectURL(file), i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("rasm ochilmadi")); i.src = u; });
+function sniff(u8){
+  if (u8[0]===0xFF && u8[1]===0xD8) return "image/jpeg";
+  if (u8[0]===0x89 && u8[1]===0x50) return "image/png";
+  if (u8[0]===0x52 && u8[1]===0x49 && u8[8]===0x57 && u8[9]===0x45) return "image/webp";
+  const t = String.fromCharCode(...u8.slice(4,12));
+  if (t.startsWith("ftyphei") || t.startsWith("ftypmif") || t.startsWith("ftyphe")) return "image/heic";
+  return "";
+}
+function loadImg(blob){
+  return new Promise((res, rej) => { const u = URL.createObjectURL(blob), i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("img")); i.src = u; });
 }
 async function shrink(file){
-  let img;
-  try { img = await loadImg(file); } catch(e) { try { img = await createImageBitmap(file); } catch(e2) { img = null; } }
+  const buf = await file.arrayBuffer();
+  if (!buf.byteLength) throw new Error("Rasm fayli bo'sh keldi. Galereyadan qayta tanlang");
+  const type = sniff(new Uint8Array(buf.slice(0, 16))) || file.type || "";
+  const src = new Blob([buf], { type: type || "image/jpeg" });
+  let img = null;
+  try { img = await loadImg(src); } catch(e) { try { img = await createImageBitmap(src); } catch(e2) {} }
   if (img) {
     const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
-    const k = Math.min(1, 1080 / Math.max(w, h));
-    const c = document.createElement("canvas"); c.width = Math.round(w*k); c.height = Math.round(h*k);
+    const k = Math.min(1, 1280 / Math.max(w, h));
+    const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w*k)); c.height = Math.max(1, Math.round(h*k));
     c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.8));
+    const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.82));
     if (blob && blob.size > 0) return blob;
   }
-  // Brauzer o'qiy olmadi: asl faylni yuboramiz (jpg/png/webp, 3MB gacha)
-  if (/^image\/(jpeg|png|webp)$/.test(file.type) && file.size <= 3*1024*1024) return file;
-  throw new Error("Bu rasm formatini o'qib bo'lmadi. Skrinshot yoki JPG rasm tanlang");
+  if (/^image\/(jpeg|png|webp)$/.test(type) && buf.byteLength <= 8*1024*1024) return src;
+  throw new Error(`Rasmni o'qib bo'lmadi (${type || file.type || "noma'lum"}, ${Math.round(buf.byteLength/1024)} KB). Skrinshot yoki JPG tanlang`);
 }
 async function submit(){
   const title = $("#title").value.trim(), price = Number($("#price").value.replace(/\D/g,""));
