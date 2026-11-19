@@ -91,6 +91,13 @@ function me(){
   return { id, name: localStorage.getItem("xb_name") || "Mehmon" };
 }
 let ME = me();
+const IS_TG = !!(tg && tg.initData && ME.id.startsWith("tg_"));
+const BOT = "Bahobor_bot", SITE = "https://xarid-baho.vercel.app";
+async function tgWrite(action, payload){
+  const { data, error } = await sb.functions.invoke("tg-write", { body: { initData: tg.initData, action, ...payload } });
+  if (error) { let m = error.message; try { m = (await error.context.json()).error || m; } catch(e){} throw new Error(m); }
+  return data;
+}
 document.getElementById("hello").textContent = ME.name;
 
 const $ = s => document.querySelector(s);
@@ -166,8 +173,9 @@ async function submit(){
       if (up.error) throw up.error;
       photo_url = sb.storage.from("xb-photos").getPublicUrl(path).data.publicUrl;
     }
-    const { error } = await sb.from("xb_purchases").insert({ user_id:ME.id, user_name:ME.name, title, price, store:form.store, category:form.cat, photo_url, note:$("#note").value.trim()||null });
-    if (error) throw error;
+    const row = { title, price, store:form.store, category:form.cat, photo_url, note:$("#note").value.trim()||null };
+    if (IS_TG) await tgWrite("post", { row });
+    else { const { error } = await sb.from("xb_purchases").insert({ user_id:ME.id, user_name:ME.name, ...row }); if (error) throw error; }
     toast("Yuborildi! Endi xalq baholaydi"); go("me");
   } catch(e) { console.error(e); toast("Xatolik: " + (e.message||e)); b.disabled=false; b.textContent="Baholashga yuborish"; }
 }
@@ -193,6 +201,7 @@ function card(p, done){
     <div class="row"><div><b>${esc(p.title)}</b><div class="meta">${esc(p.user_name)} · ${ago(p.created_at)}</div></div></div>
     <div class="row" style="margin-top:6px"><span class="price">${som(p.price)}</span><span><span class="tag">${esc(p.store)}</span><span class="tag">${esc(p.category)}</span></span></div>
     ${p.note ? `<div class="meta" style="margin-top:6px">${esc(p.note)}</div>` : ""}
+    <button class="chip share" data-id="${p.id}" data-t="${esc(p.title)}" data-p="${p.price}" style="margin-top:10px">📤 Do'stlardan so'rash</button>
     ${done ? `${bars(p)}<div class="verdict" style="color:${v.c}">${v.t}</div>` : `
       <div class="meta" style="margin-top:10px">Narxi qanday?</div>
       <div class="vote" data-k="price"><button class="a" data-v="arzon">Arzon</button><button class="n" data-v="normal">Normal</button><button class="q" data-v="qimmat">Qimmat</button></div>
@@ -200,6 +209,14 @@ function card(p, done){
       <div class="vote vote2" data-k="buy"><button class="o" data-v="1">👍 Ol</button><button class="o" data-v="0">👎 Olma</button></div>`}
   </div>`;
 }
+function share(id, title, price){
+  const text = `${title} — ${som(price)}. Arzonmi yoki qimmatmi? Baho bering 👇`;
+  if (IS_TG) { tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${BOT}?startapp=p_${id}`)}&text=${encodeURIComponent(text)}`); return; }
+  const url = `${SITE}/?p=${id}`;
+  if (navigator.share) navigator.share({ title:"Xarid Baho", text, url }).catch(()=>{});
+  else navigator.clipboard.writeText(text+" "+url).then(()=>toast("Havola nusxalandi"));
+}
+document.addEventListener("click", e => { const b = e.target.closest(".share"); if (b) { haptic(); share(b.dataset.id, b.dataset.t, b.dataset.p); } });
 function bindVotes(){
   document.querySelectorAll(".item").forEach(el => {
     const st = {};
@@ -207,8 +224,9 @@ function bindVotes(){
       g.querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on"); haptic();
       st[g.dataset.k] = b.dataset.v;
       if (st.price && st.buy) {
-        const { error } = await sb.from("xb_votes").insert({ purchase_id: el.dataset.id, user_id: ME.id, price_vote: st.price, buy_vote: st.buy==="1" });
-        if (error && error.code !== "23505") return toast("Xatolik: "+error.message);
+        const v = { purchase_id: el.dataset.id, price_vote: st.price, buy_vote: st.buy==="1" };
+        if (IS_TG) { try { await tgWrite("vote", v); } catch(e) { return toast("Xatolik: "+e.message); } }
+        else { const { error } = await sb.from("xb_votes").insert({ ...v, user_id: ME.id }); if (error && error.code !== "23505") return toast("Xatolik: "+error.message); }
         const { data } = await sb.from("xb_feed").select("*").eq("id", el.dataset.id).single();
         if (data) { el.outerHTML = card(data, true); }
         toast("Rahmat! Bahoingiz qabul qilindi");
@@ -265,7 +283,17 @@ async function viewMe(){
 const VIEWS = { add:viewAdd, feed:viewFeed, prices:viewPrices, me:viewMe };
 function go(t){ document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on", b.dataset.t===t)); scrollTo(0,0); VIEWS[t](); }
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => { haptic(); go(b.dataset.t); });
-go("feed");
+async function openShared(id){
+  if (!/^[0-9a-f-]{36}$/.test(id)) return go("feed");
+  document.querySelectorAll("nav button").forEach(b=>b.classList.remove("on"));
+  const [{ data }, mv] = await Promise.all([sb.from("xb_feed").select("*").eq("id", id).maybeSingle(), sb.from("xb_votes").select("purchase_id").eq("user_id", ME.id).eq("purchase_id", id)]);
+  if (!data) return go("feed");
+  $("#app").innerHTML = `<div class="meta" style="margin:0 4px 8px">Sizdan baho so'rashdi:</div>${card(data, (mv.data||[]).length>0 || data.user_id===ME.id)}<button class="btn" id="more">Boshqa xaridlarni ko'rish</button>`;
+  bindVotes(); $("#more").onclick = () => go("feed");
+}
+const sp = (tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param) || "";
+const qp = new URLSearchParams(location.search).get("p");
+if (sp.startsWith("p_")) openShared(sp.slice(2)); else if (qp) openShared(qp); else go("feed");
 </script>
 </body>
 </html>
