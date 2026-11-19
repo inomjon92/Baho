@@ -303,7 +303,7 @@ function loginWidget(el){
 // ---------- Profil ----------
 async function viewMe(){
   $("#app").innerHTML = `<div class="card"><div class="row"><div><b style="font-size:18px">${esc(ME.name)}</b><div class="meta">${IS_TG ? "✅ Telegram orqali kirgan" : "Mehmon (faqat shu qurilmada)"}</div></div>${ME.id.startsWith("web_")?`<button class="chip" id="rn">✏️ Ism</button>`:(!IN_TG?`<button class="chip" id="lo">Chiqish</button>`:"")}</div>
-    ${!IS_TG ? `<div style="margin-top:12px"><div class="meta" style="margin-bottom:8px">Barcha qurilmalarda bitta akkaunt uchun kiring:</div><div id="tgw"></div></div>` : ""}
+    ${!IS_TG ? `<div style="margin-top:12px"><div class="meta" style="margin-bottom:8px">Barcha qurilmalarda bitta akkaunt uchun kiring:</div><a class="btn" style="display:block;text-align:center;text-decoration:none;margin:0 0 10px" href="https://t.me/${BOT}?startapp=from_site">📱 Telegram'da ochish (tavsiya)</a><div class="meta" style="margin-bottom:6px">yoki brauzerda:</div><div id="tgw"></div></div>` : ""}
     <div class="stats" style="margin-top:12px" id="st"><div><b>…</b>Xaridlar</div><div><b>…</b>Baholar</div><div><b>…</b>Aniqlik</div></div></div>
     <h3 style="margin:16px 4px 8px">Mening xaridlarim</h3><div id="mine"><div class="empty">Yuklanmoqda...</div></div>`;
   if ($("#tgw")) loginWidget($("#tgw"));
